@@ -80,7 +80,8 @@ class Connection(object):
         """
         Override this method to define the logic by which a connection is make.
 
-        :return:  ``True`` if and only if the connection attempt is successful, otherwise ``False``.
+        :return: ``True`` if and only if the connection attempt is successful, otherwise ``False``.
+        :rtype:  ``bool``
         """
         pass
 
