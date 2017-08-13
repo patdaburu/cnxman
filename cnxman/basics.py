@@ -5,7 +5,7 @@
 .. currentmodule:: cnxman.basics
 .. moduleauthor:: Pat Daburu <pat@daburu.net>
 
-This module contains the base classes.
+This module contains the base classes and basic utilities.
 """
 
 from abc import ABCMeta, abstractmethod
@@ -13,7 +13,6 @@ from automat import MethodicalMachine
 from enum import Enum
 import time
 from pydispatch import dispatcher
-
 
 
 class ConnectionException(Exception):
@@ -55,23 +54,48 @@ class ConnectionException(Exception):
 
 
 class Connection(object):
+    """
+    Extend this class to define a logical connection to something.  The expectations we have of a connection are these:
+
+    * It can attempt create a connection and report on whether or not the connection was successful.
+    * It can (at least by all appearances) gracefully disconnect.
+    * It can release all its resources upon request.
+
+    :seealso:  :py:func:`Connection.try_connect`
+    :seealso:  :py:func:`Connection.disconnect`
+    :seealso:  :py:func:`Connection.teardown`
+    """
     __metaclass__ = ABCMeta
 
     class Signals(Enum):
-        RAISE_ALARM = 'raise-alarm'
+        """
+        These are the used by connection objects.
 
-    # TODO: Implement observer pattern.
+        :seealso:  :py:func:`pydispatch.dispatcher`
+        """
+        RAISE_ALARM = 'raise-alarm'  # Something has gone awry with the connection.
 
     @abstractmethod
     def try_connect(self) -> bool:
+        """
+        Override this method to define the logic by which a connection is make.
+
+        :return:  ``True`` if and only if the connection attempt is successful, otherwise ``False``.
+        """
         pass
 
     @abstractmethod
     def disconnect(self):
+        """
+        Override this method to take the steps required to gracefully disconnect.
+        """
         pass
 
     @abstractmethod
     def teardown(self):
+        """
+        Override this method to release resources when requested.
+        """
         pass
 
     def raise_alarm(self):
@@ -154,8 +178,12 @@ class ConnectionManager(object):
     def recovering(self):
         """We're waiting to try to reconnect."""
 
+    # TODO: Improve the _recover method!
     @_machine.output()
     def _recover(self):
+        """
+        Attempt to recover the connection.
+        """
         print("Waiting to retry.")
         time.sleep(5)
         print("Here we go.")
@@ -165,14 +193,17 @@ class ConnectionManager(object):
     def disconnected(self):
         """The connection has been disconnected."""
 
-
     @_machine.input()
     def disconnect(self):
-        """"""
+        """
+        Release the connection.
+        """
 
     @_machine.output()
     def _disconnect(self):
-        """"""
+        """
+        This is the output method mapped to the :py:func:`ConnectionManager.disconnect` input method.
+        """
         self._connection.disconnect()
 
     @_machine.state(terminal=True)
@@ -181,23 +212,36 @@ class ConnectionManager(object):
 
     @_machine.input()
     def teardown(self):
-        """"""
+        """
+        Release any resources held by the connection.
+        """
 
     @_machine.output()
     def _teardown(self):
-        """"""
+        """
+        This is the output method mapped to the :py:func:`ConnectionManager.teardown` input method.
+        """
         self._connection.teardown()
 
+    # From the 'ready' state, we can connect.
     ready.upon(connect, enter=connecting, outputs=[_connect])
+    # From the 'connecting' state, we can either go into an "everything's OK" state by silencing any alarms...
     connecting.upon(_silence_alarm, enter=connected, outputs=[])
+    # ...or we can raise the alarm.
     connecting.upon(_raise_alarm, enter=recovering, outputs=[_recover])
+    # From the 'recovering' state, we can try to connect.
     recovering.upon(connect, enter=connecting, outputs=[_connect])
     # If we're recovering, we don't need to change state if the alarm sounds because we're already in a recovery
     # condition.
     recovering.upon(_raise_alarm, enter=recovering, outputs=[])
+    # When we're connected, we can, of course, go to the 'disconnected' state.
     connected.upon(disconnect, enter=disconnected, outputs=[_disconnect])
+    # When we're connected, we can go right to the 'torndown' state if requested.
     connected.upon(teardown, enter=torndown, outputs=[_disconnect, _teardown])
+    # When we're in the 'connected' state, raising an alarm puts us into the 'recovering' state.
     connected.upon(_raise_alarm, enter=recovering, outputs=[_recover])
+    # When we're in the 'connected' state, silencing an alarm puts us into the 'connected' state.
     connected.upon(_silence_alarm, enter=connected, outputs=[])
+    # From the 'disconnected' state, we can to the 'torndown' state.
     disconnected.upon(teardown, enter=torndown, outputs=[_teardown])
 
