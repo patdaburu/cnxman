@@ -12,6 +12,7 @@ Jinja2==2.9.6
 MarkupSafe==1.0
 PyDispatcher==2.0.5
 Pygments==2.2.0
+pyserial==3.4
 pytz==2017.2
 requests==2.18.3
 six==1.10.0
