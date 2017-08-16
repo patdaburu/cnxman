@@ -8,6 +8,7 @@
 Let's manage serial port connections!
 """
 
+from .logging import loggable_class as loggable
 from cnxman.basics import Connection
 from enum import Enum
 from pydispatch import dispatcher
@@ -15,7 +16,11 @@ import serial as pyserial
 from serial import Serial, SerialException
 import threading
 
+
 class SerialListener(threading.Thread):
+    """
+    This is a thread object that listens for incoming data from a serial connection.
+    """
 
     class Signals(Enum):
         """
@@ -34,27 +39,51 @@ class SerialListener(threading.Thread):
         self._terminate_event = threading.Event()  # a threading event to tell us when its time to stop
 
     @property
-    def serial(self):
+    def serial(self) -> pyserial.Serial:
+        """
+        This is the serial object we're monitoring.
+
+        :rtype: :py:class:`pyserial.Serial`
+        """
         return self._serial
 
     def terminate(self):
-        self._serial.close()
+        """
+        Terminate the listener.
+        """
+        try:
+            self._serial.close()
+        except:
+            pass  # TODO: Log this properly.
+        # Set the termination event.
         self._terminate_event.set()
 
     def run(self):
+        """
+        Start listening for data on the serial connection.
+        """
+        # If the serial port hasn't been opened...
         if not self._serial.is_open:
+            # ...let's try to do that now.
             try:
                 self._serial.open()
-            except:
+            except:                                           # TODO: Improve the exception handling!
                 print("couldn't open the serial port.")
+                # Let any interested parties know something went wrong.
+                dispatcher.send(signal=SerialListener.Signals.READ_ERROR, sender=self)
+                # We're finished now.
+                self.terminate()
+                return
+
         while not self._terminate_event.is_set():
             try:
                 data = self._serial.read()
                 # Notify interested parties that we got something!
                 dispatcher.send(signal=SerialListener.Signals.DATA_RECEIVED, sender=self, data=data)
                 #print("got some data: ", data)
-            except:
+            except:                                           # TODO: Improve the exception handling!
                 print("an error occurred while we were reading!")
+                # Any error results in immediate termination of the listener.
                 self.terminate()
                 # Let any interested parties know.
                 dispatcher.send(signal=SerialListener.Signals.READ_ERROR, sender=self)
@@ -62,6 +91,7 @@ class SerialListener(threading.Thread):
                 return
 
 
+@loggable()
 class SerialConnection(Connection):
 
     class Signals(Enum):
@@ -89,8 +119,13 @@ class SerialConnection(Connection):
         self._timeout = timeout  # What's the timeout interval.
         self._listener: SerialListener = None  # the background thread serial monitor
 
-
     def try_connect(self) -> bool:
+        """
+        Attempt to connect to the serial port.
+
+        :return: ``True`` if and only if the connection attempt is successful, otherwise ``False``.
+        :rtype:  ``bool``
+        """
         # If we're already listening and everything is all right...
         if self._listener is not None and self._listener.serial.is_open:
             # ...there's nothing more to do here.
@@ -124,6 +159,9 @@ class SerialConnection(Connection):
             return False
 
     def disconnect(self):
+        """
+        Disconnect from the serial port.
+        """
         if self._listener is not None:
             # Disconnect from any further signals sent by the listener.
             dispatcher.disconnect(dispatcher.Any, self._listener)
@@ -132,6 +170,9 @@ class SerialConnection(Connection):
             self._listener = None
 
     def teardown(self):
+        """
+        Release the serial port entirely.
+        """
         self.disconnect()
 
     def _handle_listener_data_received(self, data):

@@ -16,3 +16,13 @@ cnxman.basics
     :inherited-members:
     :show-inheritance:
     :synopsis: These are the base classes and basic utilities.
+
+-------------
+cnxman.serial
+-------------
+.. automodule:: cnxman.serial
+    :members:
+    :undoc-members:
+    :inherited-members:
+    :show-inheritance:
+    :synopsis: Let's manage serial port connections!
