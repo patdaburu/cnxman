@@ -8,7 +8,6 @@
 This module contains the base classes and basic utilities.
 """
 
-#from .logging import loggable_class as loggable
 from abc import ABCMeta, abstractmethod
 from automat import MethodicalMachine
 from enum import Enum
@@ -108,7 +107,7 @@ class Connection(object):
         """
         dispatcher.send(signal=Connection.Signals.RAISE_ALARM, sender = self)
 
-#@loggable
+
 class ConnectionManager(object):
     """
     Extend this class to create your own object with the know-how to establish and maintain a connection to something.

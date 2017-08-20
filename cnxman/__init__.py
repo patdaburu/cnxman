@@ -8,5 +8,5 @@
 cnxman manages your connections.
 """
 
-__version__ = '0.0.1'  # The working version.
-__release__ = '0.0.1'  # The release version.
+__version__ = '0.0.2'  #: the working version
+__release__ = '0.0.2'  #: the release version
